@@ -1,14 +1,15 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import Link from "next/link";
 import { Menu, X, ChevronDown } from "lucide-react";
 
 const navItems = [
-  { label: "Services", hasDropdown: true },
-  { label: "Markets", hasDropdown: true },
-  { label: "Clients", hasDropdown: false },
-  { label: "Resources", hasDropdown: true },
-  { label: "Contact", hasDropdown: false },
+  { label: "Services", href: "/#services", hasDropdown: true },
+  { label: "Markets", href: "/#markets", hasDropdown: true },
+  { label: "About Us", href: "/about", hasDropdown: false },
+  { label: "Resources", href: "/#resources", hasDropdown: true },
+  { label: "Contact", href: "/#contact", hasDropdown: false },
 ];
 
 export default function Header() {
@@ -31,29 +32,29 @@ export default function Header() {
     >
       <div className="max-w-[1200px] mx-auto flex items-center justify-between px-6 py-4">
         {/* Logo */}
-        <a href="#" className="flex items-center gap-2 text-lg font-light tracking-tight">
+        <Link href="/" className="flex items-center gap-2 text-lg font-light tracking-tight">
           <span className="text-gray-900">masterkey</span>
           <span className="text-mk-teal-light font-medium">real estate</span>
-        </a>
+        </Link>
 
         {/* Desktop Nav */}
         <nav className="hidden lg:flex items-center gap-8">
           {navItems.map((item) => (
-            <a
+            <Link
               key={item.label}
-              href={`#${item.label.toLowerCase()}`}
+              href={item.href}
               className="flex items-center gap-1 text-sm font-medium text-gray-900 hover:text-mk-teal transition-colors"
             >
               {item.label}
               {item.hasDropdown && <ChevronDown className="w-3 h-3" />}
-            </a>
+            </Link>
           ))}
-          <a
-            href="#contact"
+          <Link
+            href="/#contact"
             className="inline-flex items-center px-6 py-2.5 rounded-full bg-mk-teal text-white text-sm font-medium hover:bg-mk-teal/90 transition-colors"
           >
             Get started
-          </a>
+          </Link>
         </nav>
 
         {/* Mobile Toggle */}
@@ -70,22 +71,22 @@ export default function Header() {
       {mobileOpen && (
         <nav className="lg:hidden bg-white border-t border-gray-200 px-6 py-6 flex flex-col gap-4 shadow-lg">
           {navItems.map((item) => (
-            <a
+            <Link
               key={item.label}
-              href={`#${item.label.toLowerCase()}`}
+              href={item.href}
               className="text-sm font-medium text-gray-900"
               onClick={() => setMobileOpen(false)}
             >
               {item.label}
-            </a>
+            </Link>
           ))}
-          <a
-            href="#contact"
+          <Link
+            href="/#contact"
             className="inline-flex items-center justify-center px-6 py-2.5 rounded-full bg-mk-teal text-white text-sm font-medium"
             onClick={() => setMobileOpen(false)}
           >
             Get started
-          </a>
+          </Link>
         </nav>
       )}
     </header>
