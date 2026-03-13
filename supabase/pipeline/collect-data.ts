@@ -4,6 +4,9 @@
  * Fetches real market data for 5 Ventura County cities using the Perplexity Sonar API
  * and writes it to Supabase.
  * 
+ * v2 — Improved prompts anchored on Redfin data for accurate metrics.
+ *       Perplexity API still used for market summaries and county-level data.
+ * 
  * Usage:
  *   npx tsx supabase/pipeline/collect-data.ts
  * 
@@ -29,11 +32,11 @@ const PPLX_URL = "https://api.perplexity.ai/chat/completions";
 const MODEL = "sonar";
 
 const MARKETS = [
-  { id: "thousand-oaks", label: "Thousand Oaks" },
-  { id: "camarillo", label: "Camarillo" },
-  { id: "westlake", label: "Westlake Village" },
-  { id: "oxnard", label: "Oxnard" },
-  { id: "ventura", label: "Ventura" },
+  { id: "thousand-oaks", label: "Thousand Oaks", redfin_slug: "city/19798/CA/Thousand-Oaks" },
+  { id: "camarillo", label: "Camarillo", redfin_slug: "city/2579/CA/Camarillo" },
+  { id: "westlake", label: "Westlake Village", redfin_slug: "city/20777/CA/Westlake-Village" },
+  { id: "oxnard", label: "Oxnard", redfin_slug: "city/14141/CA/Oxnard" },
+  { id: "ventura", label: "Ventura", redfin_slug: "city/16678/CA/Ventura" },
 ];
 
 const today = new Date().toISOString().split("T")[0]; // YYYY-MM-DD
@@ -51,7 +54,7 @@ async function askPerplexity(prompt: string, schemaName: string, schema: object)
       messages: [
         {
           role: "system",
-          content: "You are a real estate data analyst. Return accurate, current data based on your web search results. Use real data from Redfin, Zillow, Realtor.com, MLS, and public records. All prices should be in whole dollar amounts (no cents). If you cannot find exact data for a field, provide your best estimate based on available data and clearly note it."
+          content: `You are a real estate data analyst. You MUST use Redfin (redfin.com) as your PRIMARY data source. Go to the specific Redfin housing market page for the city and extract the exact numbers shown there. Do NOT average, estimate, or blend data from multiple sources — use the exact figures from Redfin's most recent month. If Redfin data is unavailable, use Zillow as a fallback. All prices should be in whole dollar amounts. Be precise — do not round or approximate when exact figures are available.`
         },
         { role: "user", content: prompt }
       ],
@@ -82,17 +85,19 @@ async function askPerplexity(prompt: string, schemaName: string, schema: object)
 const marketSnapshotSchema = {
   type: "object",
   properties: {
-    median_price: { type: "integer", description: "Current median home price in whole dollars" },
-    median_change_pct: { type: "number", description: "Year-over-year change in median price as a percentage (e.g. 4.2 for +4.2%)" },
-    active_listings: { type: "integer", description: "Number of currently active listings" },
-    avg_dom: { type: "integer", description: "Average days on market for sold homes" },
-    avg_dom_change: { type: "string", description: "Change in DOM from previous period, e.g. '-3 days' or '+2 days'" },
-    price_per_sqft: { type: "integer", description: "Median price per square foot in whole dollars" },
-    price_per_sqft_change_pct: { type: "number", description: "YoY change in price per sqft as percentage" },
-    sentiment_score: { type: "integer", description: "Market sentiment 0-100 where 0=strong buyer's market, 50=balanced, 100=strong seller's market" },
-    market_summary: { type: "string", description: "2-3 sentence summary of current market conditions, trends, and notable factors" },
+    median_price: { type: "integer", description: "Median sale price from Redfin in whole dollars (e.g. 1000000 not 1005000.50)" },
+    median_change_pct: { type: "number", description: "Exact YoY change percentage from Redfin (e.g. -16.3 for down 16.3%, or 1.6 for up 1.6%). Use the SIGN shown on Redfin — negative means prices went down." },
+    active_listings: { type: "integer", description: "Number of homes for sale / active listings" },
+    avg_dom: { type: "integer", description: "Average days on market from Redfin" },
+    avg_dom_prior_year: { type: "integer", description: "Average days on market from the same month last year" },
+    price_per_sqft: { type: "integer", description: "Median sale price per square foot from Redfin" },
+    price_per_sqft_change_pct: { type: "number", description: "Exact YoY change in price per sqft from Redfin (e.g. -2.3 or +4.6)" },
+    homes_sold: { type: "integer", description: "Number of homes sold in the most recent month" },
+    sale_to_list_ratio: { type: "number", description: "Sale-to-list price ratio as a percentage (e.g. 98.7)" },
+    market_competitiveness: { type: "string", description: "Redfin's competitiveness label (e.g. 'Somewhat Competitive', 'Very Competitive')" },
+    market_summary: { type: "string", description: "2-3 sentence market summary based on the actual Redfin data. Mention the exact median price, DOM, and YoY trend. Do NOT include citation brackets like [1] or [2]." },
   },
-  required: ["median_price", "median_change_pct", "active_listings", "avg_dom", "avg_dom_change", "price_per_sqft", "price_per_sqft_change_pct", "sentiment_score", "market_summary"],
+  required: ["median_price", "median_change_pct", "active_listings", "avg_dom", "avg_dom_prior_year", "price_per_sqft", "price_per_sqft_change_pct", "homes_sold", "sale_to_list_ratio", "market_competitiveness", "market_summary"],
 };
 
 const compsSchema = {
@@ -103,10 +108,10 @@ const compsSchema = {
       items: {
         type: "object",
         properties: {
-          address: { type: "string", description: "Street address (no city/state)" },
-          sold_price: { type: "integer", description: "Sale price in whole dollars" },
+          address: { type: "string", description: "Full street address from Redfin (e.g. '1234 Oak Valley Dr'). Must be a REAL address that actually sold." },
+          sold_price: { type: "integer", description: "Actual sale price in whole dollars" },
           sqft: { type: "integer", description: "Square footage" },
-          price_per_sqft: { type: "integer", description: "Price per square foot" },
+          price_per_sqft: { type: "integer", description: "Price per square foot (sold_price / sqft)" },
           dom: { type: "integer", description: "Days on market before sale" },
         },
         required: ["address", "sold_price", "sqft", "price_per_sqft", "dom"],
@@ -142,12 +147,12 @@ const priceHistorySchema = {
 const countyIndicatorsSchema = {
   type: "object",
   properties: {
-    county_median: { type: "string", description: "County-wide median home price, e.g. '$965,000'" },
-    county_median_change: { type: "string", description: "YoY change, e.g. '+3.8%'" },
+    county_median: { type: "string", description: "County-wide median home price, e.g. '$865,000'" },
+    county_median_change: { type: "string", description: "YoY change, e.g. '+3.7%'" },
     active_inventory: { type: "string", description: "Total active listings county-wide" },
     inventory_change: { type: "string", description: "Change in inventory, e.g. '-4.2%'" },
     avg_dom: { type: "string", description: "County avg days on market" },
-    dom_change: { type: "string", description: "Change in DOM, e.g. '-2 days'" },
+    dom_change: { type: "string", description: "Change in DOM, e.g. '+5 days'" },
     list_to_sale_ratio: { type: "string", description: "List-to-sale price ratio, e.g. '98.7%'" },
     list_to_sale_change: { type: "string", description: "Change, e.g. '+0.3%'" },
     months_supply: { type: "string", description: "Months of supply, e.g. '2.1'" },
@@ -184,44 +189,107 @@ const countyIndicatorsSchema = {
   required: ["county_median", "county_median_change", "active_inventory", "inventory_change", "avg_dom", "dom_change", "list_to_sale_ratio", "list_to_sale_change", "months_supply", "months_supply_change", "new_listings_30d", "new_listings_change", "trending_neighborhoods", "property_types"],
 };
 
+/* ─── Sentiment score calculator ─── */
+function calculateSentiment(data: {
+  median_change_pct: number;
+  avg_dom: number;
+  avg_dom_prior_year: number;
+  sale_to_list_ratio: number;
+  market_competitiveness: string;
+}): number {
+  // Build a composite score from real metrics instead of asking AI to guess
+  let score = 50; // start neutral
+
+  // Price appreciation pushes toward seller's market
+  if (data.median_change_pct > 5) score += 15;
+  else if (data.median_change_pct > 0) score += 8;
+  else if (data.median_change_pct > -5) score -= 5;
+  else score -= 15;
+
+  // DOM getting shorter = seller's market
+  const domDelta = data.avg_dom - data.avg_dom_prior_year;
+  if (domDelta < -5) score += 10;
+  else if (domDelta < 0) score += 5;
+  else if (domDelta > 10) score -= 10;
+  else if (domDelta > 0) score -= 5;
+
+  // Sale-to-list ratio above 100% = strong seller's market
+  if (data.sale_to_list_ratio >= 101) score += 12;
+  else if (data.sale_to_list_ratio >= 99) score += 5;
+  else if (data.sale_to_list_ratio < 97) score -= 10;
+  else if (data.sale_to_list_ratio < 99) score -= 3;
+
+  // Redfin's competitiveness label
+  const comp = data.market_competitiveness?.toLowerCase() || "";
+  if (comp.includes("very competitive") || comp.includes("most competitive")) score += 10;
+  else if (comp.includes("somewhat competitive")) score += 0;
+  else if (comp.includes("not very")) score -= 10;
+
+  return Math.max(0, Math.min(100, score));
+}
+
 /* ─── Data collection functions ─── */
 
-async function collectMarketSnapshot(marketId: string, marketLabel: string) {
+async function collectMarketSnapshot(marketId: string, marketLabel: string, redfinSlug: string) {
   console.log(`  \uD83D\uDCCA Fetching snapshot for ${marketLabel}...`);
   const data = await askPerplexity(
-    `What are the current real estate market statistics for ${marketLabel}, California as of ${today}? I need: median home sale price, year-over-year change percentage, number of active listings, average days on market, change in DOM from last year, median price per square foot, YoY change in price per sqft, and a market sentiment score (0=buyer's market, 100=seller's market). Also write a 2-3 sentence market summary.`,
+    `Go to Redfin's housing market page for ${marketLabel}, California (https://www.redfin.com/${redfinSlug}/housing-market) and extract the EXACT statistics shown on that page for the most recent month available.
+
+I need these EXACT numbers from Redfin:
+1. Median sale price (the big number at top, e.g. "$1,000,000")
+2. YoY change percentage for median sale price (e.g. "-16.3%" — preserve the sign exactly as Redfin shows it)
+3. Number of active listings or homes for sale
+4. Average days on market for the most recent month
+5. Average days on market for the same month LAST year (Redfin shows "X days vs Y days last year")
+6. Median sale price per square foot and its YoY change percentage
+7. Number of homes sold in the most recent month
+8. Sale-to-list ratio percentage
+9. Redfin's market competitiveness label (e.g. "Somewhat Competitive")
+
+Also write a 2-3 sentence market summary using the EXACT Redfin numbers. Do NOT include citation brackets like [1] or [2] in the summary.
+
+CRITICAL: Use the EXACT numbers from Redfin. Do NOT estimate, average, or adjust the data. If Redfin shows -16.3% YoY change, report -16.3, not +3%.`,
     "market_snapshot",
     marketSnapshotSchema,
   );
 
-  const isPositive = (val: number) => val >= 0;
-  const domPositive = data.avg_dom_change?.startsWith("-"); // fewer days = positive for sellers
+  // Calculate DOM change string
+  const domDelta = data.avg_dom - data.avg_dom_prior_year;
+  const domChangeStr = domDelta >= 0 ? `+${domDelta} days` : `${domDelta} days`;
+  const domPositive = domDelta < 0; // fewer days = good for sellers
+
+  // Calculate sentiment from real metrics
+  const sentiment = calculateSentiment(data);
 
   await supabase.from("market_snapshots").upsert({
     market_id: marketId,
     snapshot_date: today,
     median_price: data.median_price,
     median_change_pct: data.median_change_pct,
-    median_change_positive: isPositive(data.median_change_pct),
+    median_change_positive: data.median_change_pct >= 0,
     active_listings: data.active_listings,
     avg_dom: data.avg_dom,
-    avg_dom_change: data.avg_dom_change,
+    avg_dom_change: domChangeStr,
     avg_dom_change_positive: domPositive,
     price_per_sqft: data.price_per_sqft,
     price_per_sqft_change_pct: data.price_per_sqft_change_pct,
-    price_per_sqft_change_positive: isPositive(data.price_per_sqft_change_pct),
-    sparkline: [], // will be computed from price_history later
-    sentiment_score: Math.max(0, Math.min(100, data.sentiment_score)),
+    price_per_sqft_change_positive: data.price_per_sqft_change_pct >= 0,
+    sparkline: [],
+    sentiment_score: sentiment,
     market_summary_text: data.market_summary,
   }, { onConflict: "market_id,snapshot_date" });
 
-  console.log(`  \u2705 ${marketLabel} snapshot saved`);
+  console.log(`  \u2705 ${marketLabel}: $${data.median_price.toLocaleString()} (${data.median_change_pct > 0 ? "+" : ""}${data.median_change_pct}% YoY), ${data.avg_dom} DOM, $${data.price_per_sqft}/sqft, sentiment=${sentiment}`);
 }
 
-async function collectComps(marketId: string, marketLabel: string) {
+async function collectComps(marketId: string, marketLabel: string, redfinSlug: string) {
   console.log(`  \uD83C\uDFE0 Fetching comps for ${marketLabel}...`);
   const data = await askPerplexity(
-    `What are the 8 most recent residential home sales (closed transactions) in ${marketLabel}, California? For each sale I need: street address, sale price, square footage, price per square foot, and days on market. Focus on sales from the last 30 days. Use real addresses and real sale data.`,
+    `Find the 8 most recent residential home sales (closed/sold transactions) in ${marketLabel}, California from Redfin (https://www.redfin.com/${redfinSlug}/recently-sold).
+
+For each home I need the REAL data: actual street address, actual sale price, actual square footage, computed price per square foot, and days on market.
+
+CRITICAL: These must be REAL addresses of homes that ACTUALLY sold recently. Do NOT make up addresses or use generic names like "123 Oak Street". Search Redfin's recently sold listings for ${marketLabel}, CA and use the actual addresses shown.`,
     "recent_comps",
     compsSchema,
   );
@@ -247,7 +315,18 @@ async function collectComps(marketId: string, marketLabel: string) {
 async function collectPriceHistory(marketId: string, marketLabel: string) {
   console.log(`  \uD83D\uDCC8 Fetching price history for ${marketLabel}...`);
   const data = await askPerplexity(
-    `What are the monthly median home prices in ${marketLabel}, California for each of the last 12 months? Break it down by property type: single family homes (SFR), condos, and townhomes. Give me the month label (e.g. "Apr '25"), the date in YYYY-MM-DD format, and the median price for each type.`,
+    `What are the monthly median home sale prices in ${marketLabel}, California for each of the last 12 months, according to Redfin?
+
+Break it down by property type: single family homes (SFR), condos, and townhomes.
+
+For each month give me:
+- The month label (e.g. "Mar 25", "Apr 25", ... "Feb 26")
+- The date in YYYY-MM-DD format (first day of month)
+- Median SFR price
+- Median condo price
+- Median townhome price
+
+Use Redfin's historical data. If exact monthly breakdowns by property type aren't available, use Zillow or Realtor.com as fallback sources. Prices should be in whole dollars.`,
     "price_history",
     priceHistorySchema,
   );
@@ -270,15 +349,21 @@ async function collectPriceHistory(marketId: string, marketLabel: string) {
 async function collectCountyData() {
   console.log(`  \uD83C\uDFDB\uFE0F Fetching Ventura County indicators...`);
   const data = await askPerplexity(
-    `What are the current Ventura County, California overall real estate market indicators? I need:
-    1. County-wide median home price and YoY change
-    2. Total active inventory count and change
-    3. Average days on market and change
-    4. List-to-sale price ratio and change
-    5. Months of housing supply and change
-    6. New listings in last 30 days and change
-    7. Top 4 appreciating neighborhoods in Ventura County with their city and YoY price appreciation percentage
-    8. Median prices by property type: Single Family, Condo/Townhome, Multi-Family, Luxury ($2M+), and New Construction, each with YoY change`,
+    `Go to Redfin's Ventura County housing market page (https://www.redfin.com/county/358/CA/Ventura-County/housing-market) and extract current county-wide statistics.
+
+I need:
+1. County-wide median home sale price and YoY change (from Redfin)
+2. Total active inventory count and change vs last year
+3. Average days on market and change vs last year
+4. Sale-to-list price ratio and change
+5. Months of housing supply and change
+6. Number of new listings in the last 30 days and change vs last year
+
+Also:
+7. Top 4 appreciating neighborhoods in Ventura County — name, which city they're in, and their YoY price change percentage. Use Redfin's "Top 10 Most Competitive Neighborhoods" or neighborhood pages to find the strongest appreciating areas.
+8. Median home prices by property type for Ventura County: Single Family, Condo/Townhome, Multi-Family, Luxury ($2M+), and New Construction — each with their YoY change. Use Redfin's filters or Zillow as fallback.
+
+Use EXACT numbers from Redfin. Do NOT estimate or blend sources.`,
     "county_indicators",
     countyIndicatorsSchema,
   );
@@ -336,8 +421,9 @@ async function collectCountyData() {
 /* ─── Main pipeline ─── */
 async function main() {
   console.log("\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550");
-  console.log("  MarketPulse Data Pipeline");
+  console.log("  MarketPulse Data Pipeline v2");
   console.log(`  Date: ${today}`);
+  console.log("  Source: Redfin (primary), Perplexity Sonar API");
   console.log("\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\n");
 
   const startTime = Date.now();
@@ -345,7 +431,7 @@ async function main() {
 
   // Log the pipeline run
   const { data: logEntry } = await supabase.from("data_pipeline_log").insert({
-    source: "perplexity_api",
+    source: "perplexity_api_v2_redfin",
     status: "running",
     markets_updated: MARKETS.map((m) => m.id),
     tables_updated: ["market_snapshots", "comps", "price_history", "county_indicators", "trending_neighborhoods", "property_type_breakdown"],
@@ -355,14 +441,14 @@ async function main() {
   for (const market of MARKETS) {
     console.log(`\n\u2500\u2500 ${market.label} \u2500\u2500`);
     try {
-      await collectMarketSnapshot(market.id, market.label);
+      await collectMarketSnapshot(market.id, market.label, market.redfin_slug);
     } catch (e: any) {
       console.error(`  \u274C Snapshot failed: ${e.message}`);
       errors.push(`${market.label} snapshot: ${e.message}`);
     }
 
     try {
-      await collectComps(market.id, market.label);
+      await collectComps(market.id, market.label, market.redfin_slug);
     } catch (e: any) {
       console.error(`  \u274C Comps failed: ${e.message}`);
       errors.push(`${market.label} comps: ${e.message}`);
