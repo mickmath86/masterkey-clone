@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import {
   BarChart3,
   TrendingUp,
@@ -18,6 +18,7 @@ import {
   MoreHorizontal,
   Plus,
   ExternalLink,
+  Check,
 } from "lucide-react";
 import Link from "next/link";
 
@@ -30,6 +31,8 @@ type MarketKey =
   | "westlake"
   | "oxnard"
   | "ventura";
+
+type PropertyType = "sfr" | "condo" | "townhome";
 
 interface MarketSummary {
   medianPrice: string;
@@ -53,11 +56,21 @@ interface CompRecord {
   dom: number;
 }
 
+interface MonthlyPriceData {
+  month: string;
+  sfr: number;
+  condo: number;
+  townhome: number;
+}
+
 interface MarketData {
   label: string;
   summary: MarketSummary;
   comps: CompRecord[];
   marketSummaryText: string;
+  priceHistory: MonthlyPriceData[];
+  /** 0 = full buyer's market, 100 = full seller's market */
+  sentimentScore: number;
 }
 
 /* ═══════════════════════════════════════════════════════
@@ -91,6 +104,21 @@ const marketsData: Record<MarketKey, MarketData> = {
     ],
     marketSummaryText:
       "Thousand Oaks continues to show strong seller conditions with median prices up 4.2% year-over-year. Active inventory remains tight at 187 listings, down from 215 last month. The luxury segment above $2M is seeing particularly strong demand with homes averaging only 14 days on market.",
+    priceHistory: [
+      { month: "Apr", sfr: 1150000, condo: 625000, townhome: 720000 },
+      { month: "May", sfr: 1165000, condo: 630000, townhome: 728000 },
+      { month: "Jun", sfr: 1180000, condo: 640000, townhome: 735000 },
+      { month: "Jul", sfr: 1195000, condo: 635000, townhome: 740000 },
+      { month: "Aug", sfr: 1210000, condo: 645000, townhome: 750000 },
+      { month: "Sep", sfr: 1220000, condo: 650000, townhome: 755000 },
+      { month: "Oct", sfr: 1205000, condo: 648000, townhome: 745000 },
+      { month: "Nov", sfr: 1215000, condo: 655000, townhome: 758000 },
+      { month: "Dec", sfr: 1230000, condo: 660000, townhome: 762000 },
+      { month: "Jan", sfr: 1235000, condo: 658000, townhome: 768000 },
+      { month: "Feb", sfr: 1240000, condo: 665000, townhome: 775000 },
+      { month: "Mar", sfr: 1245000, condo: 670000, townhome: 780000 },
+    ],
+    sentimentScore: 72,
   },
   camarillo: {
     label: "Camarillo",
@@ -119,6 +147,21 @@ const marketsData: Record<MarketKey, MarketData> = {
     ],
     marketSummaryText:
       "Camarillo remains a strong mid-range market with median prices holding at $925,000. Days on market have increased slightly, suggesting a gradual shift toward balance. New construction in the Springville development is adding inventory in the $800K–$1M range.",
+    priceHistory: [
+      { month: "Apr", sfr: 870000, condo: 510000, townhome: 590000 },
+      { month: "May", sfr: 878000, condo: 515000, townhome: 595000 },
+      { month: "Jun", sfr: 885000, condo: 520000, townhome: 602000 },
+      { month: "Jul", sfr: 890000, condo: 518000, townhome: 608000 },
+      { month: "Aug", sfr: 898000, condo: 525000, townhome: 612000 },
+      { month: "Sep", sfr: 905000, condo: 530000, townhome: 618000 },
+      { month: "Oct", sfr: 900000, condo: 528000, townhome: 615000 },
+      { month: "Nov", sfr: 908000, condo: 535000, townhome: 622000 },
+      { month: "Dec", sfr: 912000, condo: 538000, townhome: 628000 },
+      { month: "Jan", sfr: 918000, condo: 540000, townhome: 632000 },
+      { month: "Feb", sfr: 922000, condo: 545000, townhome: 638000 },
+      { month: "Mar", sfr: 925000, condo: 548000, townhome: 642000 },
+    ],
+    sentimentScore: 58,
   },
   westlake: {
     label: "Westlake Village",
@@ -147,6 +190,21 @@ const marketsData: Record<MarketKey, MarketData> = {
     ],
     marketSummaryText:
       "Westlake Village leads the county in appreciation at +6.8% YoY. Luxury lakefront properties are seeing intense competition with multiple offers common above $2M. Inventory is historically low at just 98 active listings, creating significant upward price pressure.",
+    priceHistory: [
+      { month: "Apr", sfr: 1720000, condo: 850000, townhome: 1050000 },
+      { month: "May", sfr: 1745000, condo: 858000, townhome: 1065000 },
+      { month: "Jun", sfr: 1768000, condo: 865000, townhome: 1078000 },
+      { month: "Jul", sfr: 1790000, condo: 870000, townhome: 1090000 },
+      { month: "Aug", sfr: 1810000, condo: 878000, townhome: 1105000 },
+      { month: "Sep", sfr: 1825000, condo: 885000, townhome: 1118000 },
+      { month: "Oct", sfr: 1815000, condo: 880000, townhome: 1110000 },
+      { month: "Nov", sfr: 1840000, condo: 890000, townhome: 1125000 },
+      { month: "Dec", sfr: 1855000, condo: 895000, townhome: 1138000 },
+      { month: "Jan", sfr: 1868000, condo: 900000, townhome: 1148000 },
+      { month: "Feb", sfr: 1878000, condo: 908000, townhome: 1158000 },
+      { month: "Mar", sfr: 1890000, condo: 915000, townhome: 1168000 },
+    ],
+    sentimentScore: 85,
   },
   oxnard: {
     label: "Oxnard",
@@ -175,6 +233,21 @@ const marketsData: Record<MarketKey, MarketData> = {
     ],
     marketSummaryText:
       "Oxnard offers the most affordable entry point in Ventura County at a $725,000 median. Days on market have increased to 38 days, indicating a more balanced market compared to neighboring cities. First-time buyer activity is strong in the sub-$700K segment.",
+    priceHistory: [
+      { month: "Apr", sfr: 695000, condo: 420000, townhome: 498000 },
+      { month: "May", sfr: 698000, condo: 422000, townhome: 502000 },
+      { month: "Jun", sfr: 702000, condo: 425000, townhome: 505000 },
+      { month: "Jul", sfr: 705000, condo: 423000, townhome: 508000 },
+      { month: "Aug", sfr: 708000, condo: 428000, townhome: 510000 },
+      { month: "Sep", sfr: 712000, condo: 430000, townhome: 515000 },
+      { month: "Oct", sfr: 710000, condo: 428000, townhome: 512000 },
+      { month: "Nov", sfr: 715000, condo: 432000, townhome: 518000 },
+      { month: "Dec", sfr: 718000, condo: 435000, townhome: 522000 },
+      { month: "Jan", sfr: 720000, condo: 438000, townhome: 525000 },
+      { month: "Feb", sfr: 722000, condo: 440000, townhome: 528000 },
+      { month: "Mar", sfr: 725000, condo: 442000, townhome: 530000 },
+    ],
+    sentimentScore: 38,
   },
   ventura: {
     label: "Ventura",
@@ -203,6 +276,21 @@ const marketsData: Record<MarketKey, MarketData> = {
     ],
     marketSummaryText:
       "Ventura's beachside neighborhoods continue to command premium pricing, with the Pierpont area seeing 5.2% appreciation. The downtown corridor is benefiting from new mixed-use developments driving buyer interest. Overall market conditions favor sellers with tight inventory.",
+    priceHistory: [
+      { month: "Apr", sfr: 935000, condo: 548000, townhome: 645000 },
+      { month: "May", sfr: 942000, condo: 552000, townhome: 650000 },
+      { month: "Jun", sfr: 948000, condo: 558000, townhome: 658000 },
+      { month: "Jul", sfr: 955000, condo: 555000, townhome: 662000 },
+      { month: "Aug", sfr: 960000, condo: 562000, townhome: 668000 },
+      { month: "Sep", sfr: 965000, condo: 568000, townhome: 675000 },
+      { month: "Oct", sfr: 960000, condo: 565000, townhome: 670000 },
+      { month: "Nov", sfr: 968000, condo: 572000, townhome: 678000 },
+      { month: "Dec", sfr: 975000, condo: 578000, townhome: 685000 },
+      { month: "Jan", sfr: 978000, condo: 580000, townhome: 690000 },
+      { month: "Feb", sfr: 982000, condo: 585000, townhome: 695000 },
+      { month: "Mar", sfr: 985000, condo: 588000, townhome: 698000 },
+    ],
+    sentimentScore: 65,
   },
 };
 
@@ -246,6 +334,12 @@ const markets: { key: MarketKey; label: string }[] = [
   { key: "ventura", label: "Ventura" },
 ];
 
+const PROPERTY_TYPE_CONFIG: Record<PropertyType, { label: string; color: string }> = {
+  sfr: { label: "Single Family", color: "#1A4D4D" },
+  condo: { label: "Condos", color: "#00a5ef" },
+  townhome: { label: "Townhomes", color: "#00c758" },
+};
+
 /* ═══════════════════════════════════════════════════════
    DASHBOARD COMPONENT
    ═══════════════════════════════════════════════════════ */
@@ -255,44 +349,6 @@ export default function MarketPulseDashboard() {
 
   return (
     <div className="flex h-[calc(100vh-64px)] bg-[#FAFAF8]">
-      {/* ─── LEFT SIDEBAR ─── */}
-      <aside className="hidden lg:flex flex-col w-[200px] flex-shrink-0 bg-[#F5F3F0] border-r border-gray-200 py-5 px-3 overflow-y-auto">
-        {/* brand */}
-        <Link
-          href="/"
-          className="flex items-center gap-2 px-3 mb-5"
-        >
-          <BarChart3 className="w-5 h-5 text-mk-teal" />
-          <span className="text-sm font-medium text-gray-900">
-            MarketPulse
-          </span>
-        </Link>
-
-        {/* search */}
-        <button className="flex items-center gap-2.5 w-full px-3 py-2 rounded-lg bg-white text-sm text-gray-500 mb-1 hover:bg-gray-50 transition-colors">
-          <Search className="w-4 h-4" />
-          Search
-        </button>
-
-        {/* nav items */}
-        <nav className="flex flex-col gap-0.5 mt-2">
-          <SidebarLink icon={<Home className="w-4 h-4" />} label="Dashboard" active />
-          <SidebarLink icon={<Clock className="w-4 h-4" />} label="History" />
-          <SidebarLink icon={<Compass className="w-4 h-4" />} label="Discover" />
-          <SidebarLink icon={<LayoutGrid className="w-4 h-4" />} label="Reports" />
-          <SidebarLink icon={<BarChart3 className="w-4 h-4" />} label="Markets" active={false} />
-          <SidebarLink icon={<MoreHorizontal className="w-4 h-4" />} label="More" />
-        </nav>
-
-        {/* recent */}
-        <div className="mt-6 px-3">
-          <p className="text-xs font-medium text-gray-400 mb-2">Recent</p>
-          <p className="text-xs text-gray-400 leading-relaxed">
-            Recent searches and reports will appear here.
-          </p>
-        </div>
-      </aside>
-
       {/* ─── MAIN CONTENT ─── */}
       <main className="flex-1 overflow-y-auto">
         {/* top header bar */}
@@ -307,10 +363,13 @@ export default function MarketPulseDashboard() {
                 Search neighborhoods, addresses, and more...
               </div>
             </div>
-            <button className="text-xs text-gray-500 border border-gray-200 rounded-lg px-3 py-1.5 hover:bg-gray-50 transition-colors flex items-center gap-1.5">
-              <ExternalLink className="w-3 h-3" />
-              Share
-            </button>
+            <div className="flex items-center gap-4">
+              <SentimentBar score={data.sentimentScore} />
+              <button className="text-xs text-gray-500 border border-gray-200 rounded-lg px-3 py-1.5 hover:bg-gray-50 transition-colors flex items-center gap-1.5">
+                <ExternalLink className="w-3 h-3" />
+                Share
+              </button>
+            </div>
           </div>
 
           {/* market tabs */}
@@ -383,6 +442,14 @@ export default function MarketPulseDashboard() {
             text={data.marketSummaryText}
             market={data.label}
           />
+
+          {/* MEDIAN PRICE LINE CHART */}
+          <div className="mt-6">
+            <MedianPriceChart
+              priceHistory={data.priceHistory}
+              marketLabel={data.label}
+            />
+          </div>
 
           {/* RECENT COMPS TABLE */}
           <div className="mt-6">
@@ -604,31 +671,349 @@ export default function MarketPulseDashboard() {
 }
 
 /* ═══════════════════════════════════════════════════════
-   SUB-COMPONENTS
+   SENTIMENT BAR INDICATOR
    ═══════════════════════════════════════════════════════ */
+function SentimentBar({ score }: { score: number }) {
+  const totalBars = 10;
+  const filledBars = Math.round((score / 100) * totalBars);
+  const label = score >= 60 ? "Seller's Market" : score <= 40 ? "Buyer's Market" : "Balanced";
 
-function SidebarLink({
-  icon,
-  label,
-  active = false,
-}: {
-  icon: React.ReactNode;
-  label: string;
-  active?: boolean;
-}) {
+  /**
+   * Color gradient: bars fill left-to-right.
+   * Left side (buyer) = red tones, right side (seller) = green tones.
+   * Each bar gets a color based on its position in the filled range.
+   */
+  function getBarColor(index: number, filled: boolean): string {
+    if (!filled) return "#E5E7EB"; // gray-200
+    // Gradient from red → amber → green across the filled portion
+    const ratio = index / (totalBars - 1);
+    if (ratio < 0.3) return "#EF4444";      // red
+    if (ratio < 0.5) return "#F59E0B";      // amber
+    if (ratio < 0.7) return "#84CC16";      // lime
+    return "#00c758";                        // mk-green
+  }
+
   return (
-    <button
-      className={`flex items-center gap-2.5 w-full px-3 py-2 rounded-lg text-sm transition-colors ${
-        active
-          ? "bg-white font-medium text-gray-900 shadow-sm"
-          : "text-gray-600 hover:bg-white/60"
-      }`}
-    >
-      {icon}
-      {label}
-    </button>
+    <div className="flex items-center gap-2.5">
+      <div className="flex items-center gap-[3px]" title={`Market Sentiment: ${score}/100`}>
+        {Array.from({ length: totalBars }).map((_, i) => {
+          const filled = i < filledBars;
+          return (
+            <div
+              key={i}
+              className="w-[3px] rounded-sm transition-all duration-300"
+              style={{
+                height: `${12 + i * 1.2}px`,
+                backgroundColor: getBarColor(i, filled),
+              }}
+            />
+          );
+        })}
+      </div>
+      <span
+        className="text-xs font-semibold whitespace-nowrap"
+        style={{
+          color:
+            score >= 60
+              ? "#00c758"
+              : score <= 40
+              ? "#EF4444"
+              : "#F59E0B",
+        }}
+      >
+        {label}
+      </span>
+    </div>
   );
 }
+
+/* ═══════════════════════════════════════════════════════
+   MEDIAN PRICE LINE CHART
+   ═══════════════════════════════════════════════════════ */
+function MedianPriceChart({
+  priceHistory,
+  marketLabel,
+}: {
+  priceHistory: MonthlyPriceData[];
+  marketLabel: string;
+}) {
+  const [activeTypes, setActiveTypes] = useState<Set<PropertyType>>(
+    new Set(["sfr", "condo", "townhome"])
+  );
+  const [dropdownOpen, setDropdownOpen] = useState(false);
+  const [hoveredPoint, setHoveredPoint] = useState<number | null>(null);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+        setDropdownOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  function toggleType(type: PropertyType) {
+    setActiveTypes((prev) => {
+      const next = new Set(prev);
+      if (next.has(type)) {
+        if (next.size > 1) next.delete(type);
+      } else {
+        next.add(type);
+      }
+      return next;
+    });
+  }
+
+  // Chart dimensions
+  const chartW = 800;
+  const chartH = 260;
+  const padTop = 20;
+  const padBottom = 36;
+  const padLeft = 64;
+  const padRight = 20;
+  const plotW = chartW - padLeft - padRight;
+  const plotH = chartH - padTop - padBottom;
+
+  // Calculate min/max across active types
+  const activeTypeArr = Array.from(activeTypes);
+  let allValues: number[] = [];
+  for (const t of activeTypeArr) {
+    allValues = allValues.concat(priceHistory.map((d) => d[t]));
+  }
+  const dataMin = Math.min(...allValues);
+  const dataMax = Math.max(...allValues);
+  const yMin = Math.floor(dataMin * 0.95 / 10000) * 10000;
+  const yMax = Math.ceil(dataMax * 1.02 / 10000) * 10000;
+  const yRange = yMax - yMin || 1;
+
+  function xPos(i: number): number {
+    return padLeft + (i / (priceHistory.length - 1)) * plotW;
+  }
+  function yPos(val: number): number {
+    return padTop + plotH - ((val - yMin) / yRange) * plotH;
+  }
+
+  // Y-axis labels (5 ticks)
+  const yTicks = 5;
+  const yTickValues = Array.from({ length: yTicks }, (_, i) =>
+    yMin + (yRange / (yTicks - 1)) * i
+  );
+
+  function formatPrice(val: number): string {
+    if (val >= 1000000) return `$${(val / 1000000).toFixed(2)}M`;
+    return `$${(val / 1000).toFixed(0)}K`;
+  }
+
+  function buildPath(type: PropertyType): string {
+    return priceHistory
+      .map((d, i) => `${i === 0 ? "M" : "L"} ${xPos(i)} ${yPos(d[type])}`)
+      .join(" ");
+  }
+
+  return (
+    <div className="bg-white rounded-xl border border-gray-200 p-4">
+      {/* Header row */}
+      <div className="flex items-center justify-between mb-4">
+        <h2 className="text-sm font-medium text-gray-900">
+          Median Home Price · {marketLabel}
+        </h2>
+        {/* Property type dropdown */}
+        <div className="relative" ref={dropdownRef}>
+          <button
+            onClick={() => setDropdownOpen(!dropdownOpen)}
+            className="flex items-center gap-2 px-3 py-1.5 text-xs font-medium text-gray-700 bg-gray-50 border border-gray-200 rounded-lg hover:bg-gray-100 transition-colors"
+          >
+            Property Types
+            <ChevronDown
+              className={`w-3.5 h-3.5 transition-transform ${
+                dropdownOpen ? "rotate-180" : ""
+              }`}
+            />
+          </button>
+          {dropdownOpen && (
+            <div className="absolute right-0 top-full mt-1 w-48 bg-white border border-gray-200 rounded-lg shadow-lg z-20 py-1">
+              {(Object.keys(PROPERTY_TYPE_CONFIG) as PropertyType[]).map(
+                (type) => {
+                  const config = PROPERTY_TYPE_CONFIG[type];
+                  const isActive = activeTypes.has(type);
+                  return (
+                    <button
+                      key={type}
+                      onClick={() => toggleType(type)}
+                      className="flex items-center gap-3 w-full px-3 py-2 text-left text-sm hover:bg-gray-50 transition-colors"
+                    >
+                      <div
+                        className={`w-4 h-4 rounded border-2 flex items-center justify-center transition-colors`}
+                        style={{
+                          borderColor: isActive ? config.color : "#D1D5DB",
+                          backgroundColor: isActive ? config.color : "transparent",
+                        }}
+                      >
+                        {isActive && (
+                          <Check className="w-3 h-3 text-white" />
+                        )}
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <div
+                          className="w-3 h-[2px] rounded-full"
+                          style={{ backgroundColor: config.color }}
+                        />
+                        <span className="text-gray-700">{config.label}</span>
+                      </div>
+                    </button>
+                  );
+                }
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Legend */}
+      <div className="flex items-center gap-4 mb-3">
+        {activeTypeArr.map((type) => (
+          <div key={type} className="flex items-center gap-1.5">
+            <div
+              className="w-3 h-[2px] rounded-full"
+              style={{ backgroundColor: PROPERTY_TYPE_CONFIG[type].color }}
+            />
+            <span className="text-[11px] text-gray-500">
+              {PROPERTY_TYPE_CONFIG[type].label}
+            </span>
+          </div>
+        ))}
+      </div>
+
+      {/* SVG Chart */}
+      <div className="w-full overflow-hidden">
+        <svg
+          viewBox={`0 0 ${chartW} ${chartH}`}
+          className="w-full"
+          style={{ fontFamily: "Inter, sans-serif" }}
+          onMouseLeave={() => setHoveredPoint(null)}
+        >
+          {/* Grid lines */}
+          {yTickValues.map((val) => (
+            <g key={val}>
+              <line
+                x1={padLeft}
+                y1={yPos(val)}
+                x2={chartW - padRight}
+                y2={yPos(val)}
+                stroke="#F3F4F6"
+                strokeWidth={1}
+              />
+              <text
+                x={padLeft - 8}
+                y={yPos(val) + 3}
+                textAnchor="end"
+                fill="#9CA3AF"
+                fontSize={10}
+              >
+                {formatPrice(val)}
+              </text>
+            </g>
+          ))}
+
+          {/* X-axis labels */}
+          {priceHistory.map((d, i) => (
+            <text
+              key={i}
+              x={xPos(i)}
+              y={chartH - 8}
+              textAnchor="middle"
+              fill="#9CA3AF"
+              fontSize={10}
+            >
+              {d.month}
+            </text>
+          ))}
+
+          {/* Lines */}
+          {activeTypeArr.map((type) => (
+            <path
+              key={type}
+              d={buildPath(type)}
+              fill="none"
+              stroke={PROPERTY_TYPE_CONFIG[type].color}
+              strokeWidth={2}
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          ))}
+
+          {/* Hover interaction zones */}
+          {priceHistory.map((_, i) => (
+            <rect
+              key={i}
+              x={xPos(i) - plotW / priceHistory.length / 2}
+              y={padTop}
+              width={plotW / priceHistory.length}
+              height={plotH}
+              fill="transparent"
+              onMouseEnter={() => setHoveredPoint(i)}
+            />
+          ))}
+
+          {/* Hover vertical line + dots */}
+          {hoveredPoint !== null && (
+            <g>
+              <line
+                x1={xPos(hoveredPoint)}
+                y1={padTop}
+                x2={xPos(hoveredPoint)}
+                y2={padTop + plotH}
+                stroke="#D1D5DB"
+                strokeWidth={1}
+                strokeDasharray="4 2"
+              />
+              {activeTypeArr.map((type) => (
+                <circle
+                  key={type}
+                  cx={xPos(hoveredPoint)}
+                  cy={yPos(priceHistory[hoveredPoint][type])}
+                  r={4}
+                  fill="white"
+                  stroke={PROPERTY_TYPE_CONFIG[type].color}
+                  strokeWidth={2}
+                />
+              ))}
+            </g>
+          )}
+        </svg>
+      </div>
+
+      {/* Tooltip below chart */}
+      {hoveredPoint !== null && (
+        <div className="flex items-center gap-4 mt-2 px-2">
+          <span className="text-xs font-medium text-gray-500">
+            {priceHistory[hoveredPoint].month}
+          </span>
+          {activeTypeArr.map((type) => (
+            <div key={type} className="flex items-center gap-1.5">
+              <div
+                className="w-2 h-2 rounded-full"
+                style={{ backgroundColor: PROPERTY_TYPE_CONFIG[type].color }}
+              />
+              <span className="text-xs text-gray-700">
+                {PROPERTY_TYPE_CONFIG[type].label}:{" "}
+                <span className="font-medium">
+                  {formatPrice(priceHistory[hoveredPoint][type])}
+                </span>
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════
+   SUB-COMPONENTS
+   ═══════════════════════════════════════════════════════ */
 
 function MetricCard({
   label,
