@@ -1,23 +1,22 @@
 "use client";
 
-import { useState } from "react";
+import { useRouter } from "next/navigation";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import MarketPulseContent from "./MarketPulseContent";
-import MarketPulseDashboard from "./MarketPulseDashboard";
 
 export default function MarketPulseWrapper() {
-  const [gateCleared, setGateCleared] = useState(false);
+  const router = useRouter();
 
-  if (gateCleared) {
-    return <MarketPulseDashboard />;
+  function handleGateCleared() {
+    router.push("/marketpulse/dashboard");
   }
 
   return (
     <>
       <Header />
       <main id="top">
-        <MarketPulseContent onGateCleared={() => setGateCleared(true)} />
+        <MarketPulseContent onGateCleared={handleGateCleared} />
       </main>
       <Footer />
     </>
