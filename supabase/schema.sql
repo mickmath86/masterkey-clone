@@ -67,6 +67,8 @@ create table market_snapshots (
 
   -- Sentiment
   sentiment_score             integer check (sentiment_score between 0 and 100),
+  sale_to_list_ratio          numeric(5,2),
+  market_competitiveness      text,
 
   -- AI-generated market summary text
   market_summary_text         text,

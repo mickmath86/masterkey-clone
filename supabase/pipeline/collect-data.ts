@@ -231,7 +231,7 @@ function calculateSentiment(data: {
 /* ─── Data collection functions ─── */
 
 async function collectMarketSnapshot(marketId: string, marketLabel: string, redfinSlug: string) {
-  console.log(`  \uD83D\uDCCA Fetching snapshot for ${marketLabel}...`);
+  console.log(`  📊 Fetching snapshot for ${marketLabel}...`);
   const data = await askPerplexity(
     `Go to Redfin's housing market page for ${marketLabel}, California (https://www.redfin.com/${redfinSlug}/housing-market) and extract the EXACT statistics shown on that page for the most recent month available.
 
@@ -276,14 +276,16 @@ CRITICAL: Use the EXACT numbers from Redfin. Do NOT estimate, average, or adjust
     price_per_sqft_change_positive: data.price_per_sqft_change_pct >= 0,
     sparkline: [],
     sentiment_score: sentiment,
+    sale_to_list_ratio: data.sale_to_list_ratio,
+    market_competitiveness: data.market_competitiveness,
     market_summary_text: data.market_summary,
   }, { onConflict: "market_id,snapshot_date" });
 
-  console.log(`  \u2705 ${marketLabel}: $${data.median_price.toLocaleString()} (${data.median_change_pct > 0 ? "+" : ""}${data.median_change_pct}% YoY), ${data.avg_dom} DOM, $${data.price_per_sqft}/sqft, sentiment=${sentiment}`);
+  console.log(`  ✅ ${marketLabel}: $${data.median_price.toLocaleString()} (${data.median_change_pct > 0 ? "+" : ""}${data.median_change_pct}% YoY), ${data.avg_dom} DOM, $${data.price_per_sqft}/sqft, sentiment=${sentiment}`);
 }
 
 async function collectComps(marketId: string, marketLabel: string, redfinSlug: string) {
-  console.log(`  \uD83C\uDFE0 Fetching comps for ${marketLabel}...`);
+  console.log(`  🏠 Fetching comps for ${marketLabel}...`);
   const data = await askPerplexity(
     `Find the 8 most recent residential home sales (closed/sold transactions) in ${marketLabel}, California from Redfin (https://www.redfin.com/${redfinSlug}/recently-sold).
 
@@ -308,12 +310,12 @@ CRITICAL: These must be REAL addresses of homes that ACTUALLY sold recently. Do 
     }));
 
     await supabase.from("comps").insert(rows);
-    console.log(`  \u2705 ${data.comps.length} comps saved for ${marketLabel}`);
+    console.log(`  ✅ ${data.comps.length} comps saved for ${marketLabel}`);
   }
 }
 
 async function collectPriceHistory(marketId: string, marketLabel: string) {
-  console.log(`  \uD83D\uDCC8 Fetching price history for ${marketLabel}...`);
+  console.log(`  📈 Fetching price history for ${marketLabel}...`);
   const data = await askPerplexity(
     `What are the monthly median home sale prices in ${marketLabel}, California for each of the last 12 months, according to Redfin?
 
@@ -342,12 +344,12 @@ Use Redfin's historical data. If exact monthly breakdowns by property type aren'
         townhome: m.townhome,
       }, { onConflict: "market_id,month" });
     }
-    console.log(`  \u2705 ${data.months.length} months of price history saved for ${marketLabel}`);
+    console.log(`  ✅ ${data.months.length} months of price history saved for ${marketLabel}`);
   }
 }
 
 async function collectCountyData() {
-  console.log(`  \uD83C\uDFDB\uFE0F Fetching Ventura County indicators...`);
+  console.log(`  🏛️ Fetching Ventura County indicators...`);
   const data = await askPerplexity(
     `Go to Redfin's Ventura County housing market page (https://www.redfin.com/county/358/CA/Ventura-County/housing-market) and extract current county-wide statistics.
 
@@ -383,7 +385,7 @@ Use EXACT numbers from Redfin. Do NOT estimate or blend sources.`,
   await supabase.from("county_indicators").insert(
     indicators.map((ind) => ({ ...ind, snapshot_date: today }))
   );
-  console.log(`  \u2705 6 county indicators saved`);
+  console.log(`  ✅ 6 county indicators saved`);
 
   // Trending neighborhoods
   if (data.trending_neighborhoods?.length) {
@@ -398,7 +400,7 @@ Use EXACT numbers from Redfin. Do NOT estimate or blend sources.`,
         snapshot_date: today,
       }))
     );
-    console.log(`  \u2705 ${data.trending_neighborhoods.length} trending neighborhoods saved`);
+    console.log(`  ✅ ${data.trending_neighborhoods.length} trending neighborhoods saved`);
   }
 
   // Property type breakdown
@@ -414,20 +416,35 @@ Use EXACT numbers from Redfin. Do NOT estimate or blend sources.`,
         snapshot_date: today,
       }))
     );
-    console.log(`  \u2705 ${data.property_types.length} property type breakdowns saved`);
+    console.log(`  ✅ ${data.property_types.length} property type breakdowns saved`);
   }
 }
 
 /* ─── Main pipeline ─── */
 async function main() {
-  console.log("\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550");
+  console.log("═══════════════════════════════════════════════");
   console.log("  MarketPulse Data Pipeline v2");
   console.log(`  Date: ${today}`);
   console.log("  Source: Redfin (primary), Perplexity Sonar API");
-  console.log("\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\n");
+  console.log("═══════════════════════════════════════════════\n");
 
   const startTime = Date.now();
   const errors: string[] = [];
+
+  // Ensure new columns exist (safe to re-run)
+  try {
+    const { error: migErr } = await supabase.rpc('exec_sql', {
+      sql: `ALTER TABLE market_snapshots ADD COLUMN IF NOT EXISTS sale_to_list_ratio numeric(5,2); ALTER TABLE market_snapshots ADD COLUMN IF NOT EXISTS market_competitiveness text;`
+    });
+    if (migErr) {
+      // If RPC doesn't exist, the columns might already be there or need manual migration
+      console.log(`  ℹ️  Migration note: ${migErr.message} — columns may need manual addition via SQL Editor`);
+    } else {
+      console.log(`  ✅ Schema migration check passed`);
+    }
+  } catch {
+    console.log(`  ℹ️  Skipping auto-migration — add columns manually if needed`);
+  }
 
   // Log the pipeline run
   const { data: logEntry } = await supabase.from("data_pipeline_log").insert({
@@ -439,25 +456,25 @@ async function main() {
 
   // Collect data for each market
   for (const market of MARKETS) {
-    console.log(`\n\u2500\u2500 ${market.label} \u2500\u2500`);
+    console.log(`\n── ${market.label} ──`);
     try {
       await collectMarketSnapshot(market.id, market.label, market.redfin_slug);
     } catch (e: any) {
-      console.error(`  \u274C Snapshot failed: ${e.message}`);
+      console.error(`  ❌ Snapshot failed: ${e.message}`);
       errors.push(`${market.label} snapshot: ${e.message}`);
     }
 
     try {
       await collectComps(market.id, market.label, market.redfin_slug);
     } catch (e: any) {
-      console.error(`  \u274C Comps failed: ${e.message}`);
+      console.error(`  ❌ Comps failed: ${e.message}`);
       errors.push(`${market.label} comps: ${e.message}`);
     }
 
     try {
       await collectPriceHistory(market.id, market.label);
     } catch (e: any) {
-      console.error(`  \u274C Price history failed: ${e.message}`);
+      console.error(`  ❌ Price history failed: ${e.message}`);
       errors.push(`${market.label} price history: ${e.message}`);
     }
 
@@ -466,11 +483,11 @@ async function main() {
   }
 
   // County-level data
-  console.log("\n\u2500\u2500 Ventura County \u2500\u2500");
+  console.log("\n── Ventura County ──");
   try {
     await collectCountyData();
   } catch (e: any) {
-    console.error(`  \u274C County data failed: ${e.message}`);
+    console.error(`  ❌ County data failed: ${e.message}`);
     errors.push(`County data: ${e.message}`);
   }
 
@@ -484,15 +501,15 @@ async function main() {
     }).eq("id", logEntry.id);
   }
 
-  console.log("\n\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550");
+  console.log("\n═══════════════════════════════════════════════");
   console.log(`  Pipeline complete in ${(duration / 1000).toFixed(1)}s`);
   if (errors.length > 0) {
-    console.log(`  \u26A0\uFE0F  ${errors.length} errors occurred:`);
+    console.log(`  ⚠️  ${errors.length} errors occurred:`);
     errors.forEach((e) => console.log(`     - ${e}`));
   } else {
-    console.log("  \u2705 All data collected successfully");
+    console.log("  ✅ All data collected successfully");
   }
-  console.log("\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550");
+  console.log("═══════════════════════════════════════════════");
 }
 
 main().catch(console.error);
