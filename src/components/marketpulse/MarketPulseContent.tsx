@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { insertLead } from "@/lib/queries";
 import {
   BarChart3,
   TrendingUp,
@@ -274,13 +275,27 @@ function HeroSection({ onGateCleared }: { onGateCleared?: () => void }) {
     return next;
   }
 
-  function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     const v = validate();
     if (Object.keys(v).length > 0) {
       setErrors(v);
       return;
     }
+
+    // Save lead to Supabase
+    try {
+      await insertLead({
+        first_name: form.firstName.trim(),
+        last_name: form.lastName.trim(),
+        email: form.email.trim().toLowerCase(),
+        phone: form.phone.trim() || undefined,
+      });
+    } catch (err) {
+      // If duplicate email, that's OK — still let them through
+      console.log("Lead insert:", err);
+    }
+
     setSubmitted(true);
     if (onGateCleared) {
       // brief delay to show success before transitioning to dashboard
