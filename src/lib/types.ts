@@ -35,6 +35,8 @@ export interface MarketSnapshot {
   price_per_sqft_change_positive: boolean;
   sparkline: number[];
   sentiment_score: number;
+  sale_to_list_ratio: number | null;
+  market_competitiveness: string | null;
   market_summary_text: string;
 }
 
