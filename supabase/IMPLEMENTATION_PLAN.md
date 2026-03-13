@@ -47,9 +47,9 @@ The file `schema.sql` (in this same folder) contains the complete SQL to run in 
 | Data Category | Best Approach | Why |
 |---|---|---|
 | **Market metrics** (median price, DOM, inventory, price/sqft, sentiment, market summary) | **Perplexity Sonar API** | Structured JSON output from web-grounded search. Can query MLS-adjacent public data (Redfin, Zillow, Realtor.com). ~$0.01–0.05 per market query. |
-| **Recent comps** | **Perplexity Sonar API** | Ask for "8 most recent home sales in Thousand Oaks CA" → returns structured data with addresses and prices. |
+| **Recent comps** | **Perplexity Sonar API** | Ask for \"8 most recent home sales in Thousand Oaks CA\" → returns structured data with addresses and prices. |
 | **Price history** (monthly medians) | **Perplexity Sonar API** | Historical median prices are widely available on Redfin/Zillow. One query per market per month. |
-| **Trending neighborhoods** | **Perplexity Sonar API** | "Top appreciating neighborhoods in Ventura County" → structured list. |
+| **Trending neighborhoods** | **Perplexity Sonar API** | \"Top appreciating neighborhoods in Ventura County\" → structured list. |
 | **County indicators** | **Perplexity Sonar API** | County-level stats are well-documented in public data. |
 | **News articles** | **RSS Feed parser** (code) | Don't need AI for this. Parse RSS from VC Star, Mortgage News Daily, CAR, etc. with a simple Node.js or Python script. |
 | **Neighborhood profiles** | **Computer Task** (monthly) | More nuanced — school ratings, walk scores, descriptions need deeper research. Computer can do this thoroughly once a month. |
@@ -57,7 +57,7 @@ The file `schema.sql` (in this same folder) contains the complete SQL to run in 
 ### Why Perplexity Sonar API is the Right Primary Tool
 
 1. **Web-grounded** — searches Redfin, Zillow, Realtor.com, county records in real time
-2. **Structured JSON output** — use `response_format: { type: "json_schema" }` to get data in your exact schema shape
+2. **Structured JSON output** — use `response_format: { type: \"json_schema\" }` to get data in your exact schema shape
 3. **Cheap at your scale** — 5 markets × ~5 queries each = ~25 API calls/week. At ~$0.02/call average (Sonar), that's ~$0.50/week or ~$2/month
 4. **Citable** — responses include source URLs you could optionally display
 
@@ -65,28 +65,28 @@ The file `schema.sql` (in this same folder) contains the complete SQL to run in 
 
 ```
 For each market (5 cities):
-  1. Query: "Current real estate market stats for {city}, CA"
+  1. Query: \"Current real estate market stats for {city}, CA\"
      → Extract: median price, active listings, avg DOM, price/sqft, changes
      → Write to: market_snapshots
 
-  2. Query: "8 most recent home sales in {city}, CA with address, price, sqft, price per sqft, days on market"
+  2. Query: \"8 most recent home sales in {city}, CA with address, price, sqft, price per sqft, days on market\"
      → Write to: comps
 
-  3. Query: "Monthly median home prices in {city} CA for SFR, condos, townhomes over the past 12 months"
+  3. Query: \"Monthly median home prices in {city} CA for SFR, condos, townhomes over the past 12 months\"
      → Write to: price_history (upsert)
 
-  4. Query: "Market sentiment analysis for {city} CA real estate - is it a buyer's or seller's market?"
+  4. Query: \"Market sentiment analysis for {city} CA real estate - is it a buyer's or seller's market?\"
      → Extract sentiment score (0-100)
      → Write to: market_snapshots.sentiment_score
 
 Then (county-level, once):
-  5. Query: "Ventura County CA real estate indicators - median price, inventory, DOM, list-to-sale ratio, months of supply, new listings"
+  5. Query: \"Ventura County CA real estate indicators - median price, inventory, DOM, list-to-sale ratio, months of supply, new listings\"
      → Write to: county_indicators
 
-  6. Query: "Top appreciating neighborhoods in Ventura County CA"
+  6. Query: \"Top appreciating neighborhoods in Ventura County CA\"
      → Write to: trending_neighborhoods
 
-  7. Query: "Ventura County median home prices by property type - single family, condo/townhome, multi-family, luxury, new construction"
+  7. Query: \"Ventura County median home prices by property type - single family, condo/townhome, multi-family, luxury, new construction\"
      → Write to: property_type_breakdown
 ```
 
@@ -113,48 +113,39 @@ A recurring Computer task makes sense for:
 
 ## 3. Implementation Roadmap
 
-### Phase 1: Database Setup (Day 1)
-- [ ] Create Supabase project
-- [ ] Run `schema.sql` in SQL Editor
-- [ ] Note down: `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`
+### Phase 1: Database Setup (Day 1) ✅
+- [x] Create Supabase project
+- [x] Run `schema.sql` in SQL Editor
+- [x] Note down: `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`
 
-### Phase 2: Frontend Integration (Days 2–3)
-- [ ] Install `@supabase/supabase-js` in the Next.js project
-- [ ] Create a Supabase client utility (`src/lib/supabase.ts`)
-- [ ] **Important decision**: Since the site uses `output: "export"` (static), all Supabase queries will be client-side using the anon key + RLS. This works perfectly — the data is all public read. Alternatively, switch to ISR (Incremental Static Regeneration) for better SEO/performance.
-- [ ] Replace hardcoded mock data in `MarketPulseDashboard.tsx` with Supabase queries
-- [ ] Replace mock data in sub-pages (news, neighborhoods, playbooks)
-- [ ] Wire up the email gate form to INSERT into the `leads` table
+### Phase 2: Frontend Integration (Days 2–3) ✅
+- [x] Install `@supabase/supabase-js` in the Next.js project
+- [x] Create a Supabase client utility (`src/lib/supabase.ts`)
+- [x] Replace hardcoded mock data in `MarketPulseDashboard.tsx` with Supabase queries
+- [x] Replace mock data in sub-pages (news, neighborhoods, playbooks)
+- [x] Wire up the email gate form to INSERT into the `leads` table
 
-### Phase 3: Data Pipeline Script (Days 4–5)
-- [ ] Create a pipeline script (`supabase/pipeline/collect-data.ts` or `.py`)
-- [ ] Use Perplexity Sonar API with structured JSON output
-- [ ] Use the Supabase `service_role` key for writes (bypasses RLS)
-- [ ] Add RSS parsing for news articles
-- [ ] Test with one market, then expand to all 5
-- [ ] Log every run to `data_pipeline_log`
+### Phase 3: Data Pipeline Script (Days 4–5) ✅
+- [x] Create pipeline script (`supabase/pipeline/collect-data.ts`)
+- [x] Use Perplexity Sonar API with structured JSON output
+- [x] Use the Supabase `service_role` key for writes (bypasses RLS)
+- [x] Test with all 5 markets
+- [x] Log every run to `data_pipeline_log`
 
 ### Phase 4: Weekly Automation (Day 6)
-- [ ] Set up a weekly recurring task (options below)
+- [ ] Set up a weekly recurring task to run the pipeline script
 - [ ] Add a daily RSS fetch for news
 
-**Automation options** (pick one):
-1. **Perplexity Computer scheduled task** — set up a weekly cron here that runs the pipeline script
-2. **Supabase Edge Function + pg_cron** — Supabase can trigger a function on a schedule
-3. **GitHub Action** — a weekly cron workflow that runs the pipeline script
-4. **Vercel Cron** (if deploying on Vercel) — trigger an API route on schedule
-
-### Phase 5: Seed Historical Data (Day 7)
-- [ ] Backfill `price_history` with 5 years of monthly data (for the 5Y and All timeframe views)
-- [ ] Seed initial comps, snapshots, and neighborhood data
-- [ ] Verify dashboard renders correctly from live data
+### Phase 5: Historical Data Backfill
+- [ ] Backfill `price_history` with 5 years of monthly data
+- [ ] Seed initial neighborhood profiles
 
 ---
 
 ## 4. Technical Notes
 
 ### Static Export Compatibility
-The current `next.config.ts` uses `output: "export"`. This means:
+The current `next.config.ts` uses `output: \"export\"`. This means:
 - No server-side rendering or API routes
 - All Supabase queries happen client-side in the browser
 - This is fine — the RLS policies allow public read access via the anon key
@@ -177,11 +168,19 @@ PERPLEXITY_API_KEY=pplx-...
 1. Go to https://docs.perplexity.ai → sign up for API access
 2. Get an API key
 3. Use the `sonar` model for most queries (~$0.01/query)
-4. Use `response_format: { type: "json_schema" }` for structured output
+4. Use `response_format: { type: \"json_schema\" }` for structured output
 5. Estimated monthly cost: **$2–6/month** for 5 markets weekly
 
 ---
 
-## Next Step
+## Running the Pipeline
 
-Upload `schema.sql` to Supabase and share your project URL + keys, and I'll wire up the frontend to read from the database and build the data pipeline script.
+```bash
+# Set env vars
+export PERPLEXITY_API_KEY=pplx-xxx
+export SUPABASE_URL=https://your-project.supabase.co
+export SUPABASE_SERVICE_KEY=eyJ...
+
+# Run the pipeline
+npm run pipeline
+```
