@@ -213,10 +213,14 @@ const faqItems = [
 /* ═══════════════════════════════════════════════
    MAIN COMPONENT
    ═══════════════════════════════════════════════ */
-export default function MarketPulseContent() {
+export default function MarketPulseContent({
+  onGateCleared,
+}: {
+  onGateCleared?: () => void;
+}) {
   return (
     <>
-      <HeroSection />
+      <HeroSection onGateCleared={onGateCleared} />
       <LogoBar />
       <FeatureRows />
       <DarkSection />
@@ -234,7 +238,7 @@ export default function MarketPulseContent() {
    1. HERO — two-column: text + form left, visual right
    Modeled after Perplexity Enterprise hero
    ═══════════════════════════════════════════════ */
-function HeroSection() {
+function HeroSection({ onGateCleared }: { onGateCleared?: () => void }) {
   const [form, setForm] = useState({
     firstName: "",
     lastName: "",
@@ -278,6 +282,10 @@ function HeroSection() {
       return;
     }
     setSubmitted(true);
+    if (onGateCleared) {
+      // brief delay to show success before transitioning to dashboard
+      setTimeout(() => onGateCleared(), 1200);
+    }
   }
 
   return (
