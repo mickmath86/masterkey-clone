@@ -14,6 +14,7 @@ interface NavItem {
 const navItems: NavItem[] = [
   { label: "Services", href: "/#services", hasDropdown: true },
   { label: "Markets", href: "/#markets", hasDropdown: true },
+  { label: "Home Value", href: "/homevalue", hasDropdown: false },
   { label: "About Us", href: "/about", hasDropdown: false },
   {
     label: "Resources",
